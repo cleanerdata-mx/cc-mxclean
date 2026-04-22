@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DataCleaner ⚡</title>
+
+<style>
+*{box-sizing:border-box}
+
+:root{
+  --neon-blue:#00eaff;
+  --neon-pink:#ff2bd6;
+  --neon-purple:#8b5cf6;
+  --neon-green:#00ffa6;
+}
+
+body{
+  margin:0;
+  font-family:Inter,sans-serif;
+  background: radial-gradient(circle at top,#050816,#000);
+  color:#e2e8f0;
+}
+
+.header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:20px;
+}
+
+.logo{
+  font-weight:700;
+  font-size:22px;
+  background:linear-gradient(90deg,var(--neon-blue),var(--neon-pink));
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+}
+
+.container{
+  max-width:1000px;
+  margin:auto;
+  padding:20px;
+}
+
+.card{
+  background:rgba(0,0,0,0.6);
+  border-radius:18px;
+  padding:20px;
+  margin-bottom:20px;
+  border:1px solid rgba(255,255,255,0.05);
+  box-shadow:0 0 30px rgba(139,92,246,0.15);
+}
+
+.drop{
+  border:2px dashed transparent;
+  background:linear-gradient(#000,#000) padding-box,
+             linear-gradient(90deg,var(--neon-pink),var(--neon-blue)) border-box;
+  padding:30px;
+  text-align:center;
+  border-radius:14px;
+  cursor:pointer;
+}
+
+textarea{
+  width:100%;
+  height:140px;
+  margin-top:10px;
+  border-radius:10px;
+  border:1px solid rgba(255,255,255,0.05);
+  background:#000;
+  color:white;
+  padding:12px;
+}
+
+.buttons{
+  margin-top:15px;
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+button{
+  flex:1;
+  padding:12px;
+  border-radius:10px;
+  border:none;
+  cursor:pointer;
+  font-weight:600;
+}
+
+.primary{
+  background:linear-gradient(90deg,var(--neon-pink),var(--neon-blue));
+  color:white;
+}
+
+.secondary{
+  background:transparent;
+  border:1px solid var(--neon-pink);
+  color:var(--neon-pink);
+}
+
+.stats{
+  display:flex;
+  gap:15px;
+}
+
+.stat{
+  flex:1;
+  padding:20px;
+  border-radius:14px;
+  text-align:center;
+  background:#000;
+}
+
+.result{
+  background:#000;
+  padding:15px;
+  border-radius:12px;
+  max-height:300px;
+  overflow-y:auto;
+  font-family:monospace;
+  color:var(--neon-pink);
+}
+
+.footer{
+  text-align:center;
+  font-size:12px;
+  color:#64748b;
+}
+
+@media(max-width:768px){
+  .stats{flex-direction:column}
+  .buttons{flex-direction:column}
+}
+</style>
+</head>
+
+<body>
+
+<div class="header">
+  <div class="logo">⚡ DataCleaner</div>
+</div>
+
+<div class="container">
+
+  <div class="card">
+    <div class="drop" id="dropZone">
+      Arrastra tu archivo o toca aquí
+      <input type="file" id="fileInput" hidden>
+    </div>
+
+    <textarea id="input" placeholder="Pega tu texto aquí..."></textarea>
+
+    <div class="buttons">
+      <button class="primary" onclick="filtrar()">Filtrar datos</button>
+      <button class="secondary" onclick="descargarTXT()">TXT</button>
+      <button class="secondary" onclick="descargarCSV()">CSV</button>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat">Total<br><b id="total">0</b></div>
+    <div class="stat">Eliminadas<br><b id="eliminadas">0</b></div>
+    <div class="stat">Válidas<br><b id="validas">0</b></div>
+    <div class="stat">Duplicadas<br><b id="duplicadas">0</b></div>
+  </div>
+
+  <div class="card">
+    <div class="result" id="resultadoBox"></div>
+  </div>
+
+  <div class="footer">DataCleaner 2026 © Tg: @LaBBJess</div>
+
+</div>
+
+<script>
+
+// Luhn
+function validarLuhn(numero){
+  let suma=0, alt=false;
+  for(let i=numero.length-1;i>=0;i--){
+    let n=parseInt(numero[i]);
+    if(alt){n*=2;if(n>9)n-=9;}
+    suma+=n;
+    alt=!alt;
+  }
+  return suma%10===0;
+}
+
+// File
+const dropZone=document.getElementById("dropZone");
+const fileInput=document.getElementById("fileInput");
+
+dropZone.onclick=()=>fileInput.click();
+dropZone.ondrop=e=>{
+  e.preventDefault();
+  leerArchivo(e.dataTransfer.files[0]);
+};
+dropZone.ondragover=e=>e.preventDefault();
+
+fileInput.onchange=e=>leerArchivo(e.target.files[0]);
+
+function leerArchivo(file){
+  let r=new FileReader();
+  r.onload=e=>input.value=e.target.result;
+  r.readAsText(file);
+}
+
+// FILTRO PRO
+function filtrar(){
+  let texto=input.value;
+  let lineas=texto.split("\n");
+  let hoy=new Date();
+
+  let total=lineas.length;
+  let eliminadas=0, duplicadas=0;
+  let resultado=[];
+  let vistos=new Set();
+
+  lineas.forEach(linea=>{
+    linea=linea.trim();
+
+    linea=linea.replace(/^\d+:\s*/,'');       // 1:
+    linea=linea.replace(/\s*\d+\.\d+$/,'');   // 24.2
+    linea=linea.replace(/<[^>]*>?/gm,'');     // XSS
+    linea=linea.replace(/^[^0-9]+/,'');
+
+    let match=linea.match(/\d{2}\/\d{2}\/\d{4}/);
+    if(match){
+      let[d,m,y]=match[0].split("/");
+      let f=new Date(`${y}-${m}-${d}`);
+      if(f<hoy){eliminadas++;return;}
+      linea=linea.replace(match[0],`${d}|${m}|${y}`);
+    }
+
+    linea=linea.replace(/[^0-9|]/g,'');
+
+    if(!/^\d+\|\d+\|\d+\|\d+$/.test(linea)){eliminadas++;return;}
+
+    let [card]=linea.split("|");
+
+    if(card.length<13||card.length>19){eliminadas++;return;}
+    if(!validarLuhn(card)){eliminadas++;return;}
+
+    if(vistos.has(linea)){duplicadas++;return;}
+
+    vistos.add(linea);
+    resultado.push(linea);
+  });
+
+  resultadoBox.textContent=resultado.join("\n");
+  totalEl=total;
+  totalEl=document.getElementById("total").textContent=total;
+  document.getElementById("eliminadas").textContent=eliminadas;
+  document.getElementById("validas").textContent=resultado.length;
+  document.getElementById("duplicadas").textContent=duplicadas;
+}
+
+// export
+function descargarTXT(){
+  let c=resultadoBox.textContent;
+  if(!c.trim())return alert("No hay datos");
+  let a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([c]));
+  a.download="resultado.txt";
+  a.click();
+}
+
+function descargarCSV(){
+  let c=resultadoBox.textContent.replace(/\|/g,",");
+  if(!c.trim())return alert("No hay datos");
+  let a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([c]));
+  a.download="resultado.csv";
+  a.click();
+}
+
+</script>
+
+</body>
+</html>
